@@ -1,3 +1,8 @@
 libcsocks5 - simple SOCKS 5 client library
 
 WIP
+
+references
+----------
+- [RFC1928]  SOCKS Protocol Version 5
+- [RFC1929]  Username/Password Authentication for SOCKS V5
