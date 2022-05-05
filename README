@@ -1,6 +1,41 @@
 libcsocks5 - simple SOCKS 5 client library
 
-WIP
+for now, only IPv4 and domain-name are tested.
+
+
+API
+---
+- Create context
+struct socks_ctx *socks_init(void);
+
+- Set authentication (RFC1929 only)
+int socks_set_auth(struct socks_ctx *, const char *, const char *);
+
+- Set SOCKS server
+int socks_set_server(struct socks_ctx *, const char *, const char *);
+
+- Connect to the SOCKS server
+int socks_connect_server(struct socks_ctx *);
+
+- Set IPv4 address and port destination (TESTED and WORKED)
+int socks_set_addr4(struct socks_ctx *, const char *, const char *);
+
+- Set IPv6 address and port to destination (NOT TESTED YET)
+int socks_set_addr6(struct socks_ctx *, const char *, const char *);
+
+- Set Fully qualified domain name and port to connect (TESTED and WORKED)
+int socks_set_addrname(struct socks_ctx *, const char *, const char *);
+
+- Perform a SOCKS request
+int socks_connect(struct socks_ctx *);
+
+If socks_connect() success, it returns a file descriptor that you can use
+just like a simple socket() + connect() socket, you can use socket operations
+like send(), write(), recv(), read(), etc...
+
+- All done
+void socks_end(struct socks_ctx *);
+
 
 references
 ----------
