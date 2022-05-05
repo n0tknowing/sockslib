@@ -2,45 +2,72 @@
 #include <err.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 
 #include "csocks5.h"
 
-/* only ipv4 is tested */
+static void usage(void)
+{
+	fprintf(stderr, "usage: prog host port method\n\n");
+	fprintf(stderr, "method:\n");
+	fprintf(stderr, "  - ipv4\n");
+	fprintf(stderr, "  - ipv6\n");
+	fprintf(stderr, "  - name\n\n");
+	exit(1);
+}
+
 int main(int argc, char **argv)
 {
-	if (argc < 3)
-		return -1;
+	if (argc < 4)
+		usage();
 
 	const char *host = argv[1];
 	const char *port = argv[2];
+	const char *method = argv[3];
 
 	int ret = 1, fd;
 	struct socks_ctx *ctx = socks_init();
 	if (!ctx)
 		err(1, "socks_init");
 
+
+/* If the SOCKS server is authenticated using RFC1929, then uncomment this
 	ret = socks_set_auth(ctx, "foo", "bar");
 	if (ret < 0)
 		goto fail;
+*/
 
+	/* set the SOCKS server here */
 	ret = socks_set_server(ctx, "socks5.foo-bar.org", "1773");
 	if (ret < 0)
 		goto fail;
 
+	/* then, connect it */
 	ret = socks_connect_server(ctx);
 	if (ret < 0)
 		goto fail;
 
-	ret = socks_set_addr4(ctx, host, port);
+	if (!strcmp(method, "ipv4"))
+		ret = socks_set_addr4(ctx, host, port);
+	else if (!strcmp(method, "ipv6"))
+		ret = socks_set_addr6(ctx, host, port);
+	else if (!strcmp(method, "name"))
+		ret = socks_set_addrname(ctx, host, port);
+	else
+		usage();
+
 	if (ret < 0)
 		goto fail;
 
+	/* now, perform the request */
 	fd = socks_connect(ctx);
 	if (fd < 0)
 		goto fail;
 
+	/* if success, let's GET a HTTP web */
 	char buf[10];
 	ssize_t r, k = 1;
 
