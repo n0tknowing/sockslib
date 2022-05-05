@@ -8,7 +8,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include "libsocks5.h"
+#include "csocks5.h"
 
 static int socks_negotiate(int fd)
 {

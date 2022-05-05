@@ -5,7 +5,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#include "libsocks5.h"
+#include "csocks5.h"
 
 /* only ipv4 is tested */
 int main(int argc, char **argv)
