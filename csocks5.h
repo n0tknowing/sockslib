@@ -1,5 +1,5 @@
-#ifndef libsocks5_h
-#define libsocks5_h
+#ifndef csocks5_h
+#define csocks5_h
 
 struct socks_ctx;
 
@@ -13,4 +13,4 @@ int socks_set_addrname(struct socks_ctx *, const char *, const char *);
 int socks_connect(struct socks_ctx *);
 void socks_end(struct socks_ctx *);
 
-#endif /* libsocks5_h */
+#endif /* csocks5_h */
