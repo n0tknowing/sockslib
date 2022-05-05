@@ -247,6 +247,7 @@ int socks_connect(struct socks_ctx *ctx)
 		len += 4;
 		break;
 	case 3: /* domain name */
+		req_buf[len++] = ctx->name_len;
 		memcpy(req_buf + len, ctx->name, ctx->name_len);
 		len += ctx->name_len;
 		break;
@@ -261,6 +262,12 @@ int socks_connect(struct socks_ctx *ctx)
 
 	memcpy(req_buf + len, &(ctx->port), 2);
 	len += 2;
+
+#if 0
+	for (size_t i = 0; i <len; i++)
+		printf("%02x (%c), ", req_buf[i], req_buf[i]);
+	printf("\n");
+#endif
 
 	if (send(ctx->fd, req_buf, len, 0) < 0)
 		return -1;
