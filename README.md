@@ -1,4 +1,4 @@
-# libcsocks5 - simple SOCKS 5 client library
+# sockslib - simple SOCKS client library
 
 ## Status
 

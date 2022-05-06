@@ -7,7 +7,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#include "csocks5.h"
+#include "sockslib.h"
 
 static void usage(void)
 {
@@ -15,7 +15,7 @@ static void usage(void)
 	fprintf(stderr, "method:\n");
 	fprintf(stderr, "  - ipv4\n");
 	fprintf(stderr, "  - ipv6\n");
-	fprintf(stderr, "  - name\n\n");
+	fprintf(stderr, "  - name\n");
 	exit(1);
 }
 
@@ -33,12 +33,13 @@ int main(int argc, char **argv)
 	if (!ctx)
 		err(1, "socks_init");
 
-
-/* If the SOCKS server is authenticated using RFC1929, then uncomment this
+	/* If the SOCKS server is authenticated using RFC1929,
+	 * then change it to #if 1 */
+#if 0
 	ret = socks_set_auth(ctx, "foo", "bar");
 	if (ret < 0)
 		goto fail;
-*/
+#endif
 
 	/* set the SOCKS server here */
 	ret = socks_set_server(ctx, "socks5.foo-bar.org", "1773");
@@ -88,6 +89,8 @@ int main(int argc, char **argv)
 fail:
 	if (errno)
 		perror(NULL);
+	else if (ret)
+		fprintf(stderr, "%s\n", socks_strerror(ret));
 
 	socks_end(ctx);
 	return ret;
