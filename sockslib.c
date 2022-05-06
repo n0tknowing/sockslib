@@ -178,10 +178,10 @@ int socks_connect_server(struct socks_ctx *ctx)
 
 	ctx->auth.method = socks_negotiate(ctx->server.fd);
 	switch (ctx->auth.method) {
-	case 0:
+	case SOCKS_NO_AUTH:
 		ret = SOCKS_ERR_OK;
 		break;
-	case 2:
+	case SOCKS_AUTH_USERPASS:
 		auth_buf = malloc(3 + ctx->auth.user_len + ctx->auth.pass_len);
 		if (!auth_buf)
 			return -1;
