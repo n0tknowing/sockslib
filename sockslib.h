@@ -1,3 +1,9 @@
+/*
+ * Nathanael Eka Oktavian <nathanael@nand.eu.org>
+ *
+ * BSD-3-Clause
+ */
+
 #ifndef SOCKSLIB_H
 #define SOCKSLIB_H
 
