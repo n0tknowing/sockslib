@@ -258,7 +258,6 @@ int socks_connect(struct socks_ctx *ctx)
 	if (!ctx)
 		return -SOCKS_ERR_INVALID_ARG;
 
-	int ret;
 	unsigned char req_buf[512], resp_buf[512];  /* big enough? */
 	size_t len = 0;
 
@@ -294,8 +293,8 @@ int socks_connect(struct socks_ctx *ctx)
 	if (recv(ctx->server.fd, resp_buf, len, 0) < 0)
 		return -1;
 
-	ret = resp_buf[1];
-	return ret ? -ret : ctx->server.fd;
+	ctx->reply = resp_buf[1];
+	return ctx->reply ? -ctx->reply : ctx->server.fd;
 }
 
 void socks_end(struct socks_ctx *ctx)
