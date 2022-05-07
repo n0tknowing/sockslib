@@ -16,7 +16,7 @@
 
 #include "sockslib.h"
 
-static int socks_negotiate(int fd)
+static int socks_get_auth_method(int fd)
 {
 	unsigned char req_buf[4], resp_buf[2];
 
@@ -25,23 +25,27 @@ static int socks_negotiate(int fd)
 	req_buf[2] = SOCKS_NO_AUTH;
 	req_buf[3] = SOCKS_AUTH_USERPASS;
 
-	if (send(fd, req_buf, 5, 0) < 0)
-		return -1;
+	if (send(fd, req_buf, 4, 0) < 0)
+		return -SOCKS_ERR_SYS_ERRNO;
 
 	if (recv(fd, resp_buf, 2, 0) < 0)
-		return -1;
+		return -SOCKS_ERR_SYS_ERRNO;
 
 	return resp_buf[1];
 }
 
 static int socks_setaddr(int type, void *dest, const char *ip)
 {
-	if (inet_pton(type, ip, dest) <= 0) {
-		errno = EFAULT;
-		return -1;
+	int ret = SOCKS_ERR_OK;
+
+	if ((ret = inet_pton(type, ip, dest)) <= 0) {
+		if (ret == 0)
+			ret = -SOCKS_ERR_ADDR_NOTSUPP;
+		else
+			ret = -SOCKS_ERR_SYS_ERRNO;
 	}
 
-	return SOCKS_ERR_OK;
+	return ret;
 }
 
 static void server_clear(struct socks_ctx *ctx)
@@ -95,12 +99,14 @@ const char *socks_strerror(int code)
 		"", "SOCKS server failure", "Connection not allowed",
 		"Network unreachable", "Host unreachable",
 		"Connection refused", "TTL expired", "Command not supported",
-		"Address type not supported", "Authentication failed",
-		"Invalid argument"
+		"Address type not supported", "Authentication not supported",
+		"Invalid authentication", "Value too long",
+		"Memory allocation failure", "Invalid argument",
+		"System error (see errno)"
 	};
 
 	code = (code < 0) ? -code : code;
-	if (code >= SOCKS_ERR_OK && code <= SOCKS_ERR_INVALID_ARG)
+	if (code >= SOCKS_ERR_OK && code <= SOCKS_ERR_SYS_ERRNO)
 		return str[code];
 
 	return "Unknown error";
@@ -109,10 +115,10 @@ const char *socks_strerror(int code)
 int socks_set_auth(struct socks_ctx *ctx, const char *u, const char *p)
 {
 	if (!ctx)
-		return -SOCKS_ERR_INVALID_ARG;
+		return -SOCKS_ERR_BAD_ARG;
 
 	if (!u || !*u || !p || !*p)
-		return -SOCKS_ERR_INVALID_ARG;
+		return -SOCKS_ERR_BAD_ARG;
 
 	size_t ul, pl;
 
@@ -120,7 +126,7 @@ int socks_set_auth(struct socks_ctx *ctx, const char *u, const char *p)
 	pl = strlen(p);
 
 	if (ul > 255 || pl > 255)
-		return -SOCKS_ERR_INVALID_AUTH;
+		return -SOCKS_ERR_BAD_AUTH;
 
 	memcpy(ctx->auth.username, u, ul);
 	memcpy(ctx->auth.password, p, pl);
@@ -133,7 +139,7 @@ int socks_set_auth(struct socks_ctx *ctx, const char *u, const char *p)
 int socks_set_server(struct socks_ctx *ctx, const char *host, const char *port)
 {
 	if (!ctx)
-		return -SOCKS_ERR_INVALID_ARG;
+		return -SOCKS_ERR_BAD_ARG;
 
 	int fd;
 	struct addrinfo hint, *res, *addr;
@@ -143,7 +149,7 @@ int socks_set_server(struct socks_ctx *ctx, const char *host, const char *port)
 	hint.ai_socktype = SOCK_STREAM;
 
 	if (getaddrinfo(host, port, &hint, &res) < 0)
-		return -SOCKS_ERR_CONN_REFUSED;
+		return -SOCKS_ERR_SYS_ERRNO;
 
 	for (addr = res; addr; addr = addr->ai_next) {
 		fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -154,7 +160,7 @@ int socks_set_server(struct socks_ctx *ctx, const char *host, const char *port)
 
 	if (!addr) {
 		freeaddrinfo(res);
-		return -SOCKS_ERR_CONN_REFUSED;
+		return -SOCKS_ERR_SERV_FAIL;
 	}
 
 	ctx->server.fd = fd;
@@ -165,26 +171,26 @@ int socks_set_server(struct socks_ctx *ctx, const char *host, const char *port)
 int socks_connect_server(struct socks_ctx *ctx)
 {
 	if (!ctx)
-		return -SOCKS_ERR_INVALID_ARG;
+		return -SOCKS_ERR_BAD_ARG;
 
-	int ret = SOCKS_ERR_INVALID_AUTH;
+	int ret = SOCKS_ERR_OK;
 	ssize_t len = 0;
 	unsigned char *auth_buf = NULL, res_buf[2];
 
 	if (connect(ctx->server.fd,
 		    ctx->server.s_addr->ai_addr,
 		    ctx->server.s_addr->ai_addrlen) < 0)
-		return -1;
+		return -SOCKS_ERR_SYS_ERRNO;
 
-	ctx->auth.method = socks_negotiate(ctx->server.fd);
+	ctx->auth.method = socks_get_auth_method(ctx->server.fd);
 	switch (ctx->auth.method) {
 	case SOCKS_NO_AUTH:
-		ret = SOCKS_ERR_OK;
+		ctx->auth.authed = 1;
 		break;
 	case SOCKS_AUTH_USERPASS:
 		auth_buf = malloc(3 + ctx->auth.user_len + ctx->auth.pass_len);
 		if (!auth_buf)
-			return -1;
+			return -SOCKS_ERR_NO_MEM;
 
 		auth_buf[len++] = SOCKS_AUTH_VERSION;
 
@@ -196,32 +202,38 @@ int socks_connect_server(struct socks_ctx *ctx)
 		memcpy(auth_buf + len, ctx->auth.password, ctx->auth.pass_len);
 		len += ctx->auth.pass_len;
 
-		if (send(ctx->server.fd, auth_buf, len, 0) < 0)
+		if (send(ctx->server.fd, auth_buf, len, 0) <= 0) {
+			ret = -SOCKS_ERR_BAD_AUTH;
 			goto auth_fail;
-
-		if (recv(ctx->server.fd, res_buf, 2, 0) < 0)
-			goto auth_fail;
-
-		if (res_buf[1] == 0) {
-			ret = SOCKS_ERR_OK;
-			ctx->auth.authed = 1;
 		}
+
+		if (recv(ctx->server.fd, res_buf, 2, 0) <= 0) {
+			ret = -SOCKS_ERR_BAD_AUTH;
+			goto auth_fail;
+		}
+
+		if (res_buf[1] != 0) {
+			ret = -SOCKS_ERR_BAD_AUTH;
+			goto auth_fail;
+		}
+
+		ctx->auth.authed = 1;
 auth_fail:
 		free(auth_buf);
 		auth_buf = NULL;
 		break;
 	default:
-		ret = SOCKS_ERR_INVALID_ARG;
+		ret = -SOCKS_ERR_AUTH_NOTSUPP;
 		break;
 	}
 
-	return ret ? -ret : SOCKS_ERR_OK;
+	return ret;
 }
 
 int socks_set_addr4(struct socks_ctx *ctx, const char *ip, const char *port)
 {
 	if (!ctx)
-		return -SOCKS_ERR_INVALID_ARG;
+		return -SOCKS_ERR_BAD_ARG;
 
 	ctx->atyp = SOCKS_ATYP_IPV4;
 	ctx->d_port = htons(atoi(port));
@@ -232,7 +244,7 @@ int socks_set_addr4(struct socks_ctx *ctx, const char *ip, const char *port)
 int socks_set_addr6(struct socks_ctx *ctx, const char *ip, const char *port)
 {
 	if (!ctx)
-		return -SOCKS_ERR_INVALID_ARG;
+		return -SOCKS_ERR_BAD_ARG;
 
 	ctx->atyp = SOCKS_ATYP_IPV6;
 	ctx->d_port = htons(atoi(port));
@@ -243,7 +255,7 @@ int socks_set_addr6(struct socks_ctx *ctx, const char *ip, const char *port)
 int socks_set_addrname(struct socks_ctx *ctx, const char *name, const char *port)
 {
 	if (!ctx)
-		return -SOCKS_ERR_INVALID_ARG;
+		return -SOCKS_ERR_BAD_ARG;
 
 	ctx->d_name_len = strlen(name);
 	ctx->atyp = SOCKS_ATYP_NAME;
@@ -256,7 +268,7 @@ int socks_set_addrname(struct socks_ctx *ctx, const char *name, const char *port
 int socks_connect(struct socks_ctx *ctx)
 {
 	if (!ctx)
-		return -SOCKS_ERR_INVALID_ARG;
+		return -SOCKS_ERR_BAD_ARG;
 
 	unsigned char req_buf[512], resp_buf[512];  /* big enough? */
 	size_t len = 0;
@@ -281,17 +293,17 @@ int socks_connect(struct socks_ctx *ctx)
 		len += 16;
 		break;
 	default:
-		return -SOCKS_ERR_CMD_NOT_SUPP;
+		return -SOCKS_ERR_ADDR_NOTSUPP;
 	}
 
 	memcpy(req_buf + len, &ctx->d_port, 2);
 	len += 2;
 
 	if (send(ctx->server.fd, req_buf, len, 0) < 0)
-		return -1;
+		return -SOCKS_ERR_SYS_ERRNO;
 
 	if (recv(ctx->server.fd, resp_buf, len, 0) < 0)
-		return -1;
+		return -SOCKS_ERR_SYS_ERRNO;
 
 	ctx->reply = resp_buf[1];
 	return ctx->reply ? -ctx->reply : ctx->server.fd;
