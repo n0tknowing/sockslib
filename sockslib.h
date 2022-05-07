@@ -33,18 +33,31 @@ enum socks_address_type {
 	SOCKS_ATYP_IPV6 = 4
 };
 
+/* One MUST set any of this with negative value
+ * instead of the original value (except for SOCKS_ERR_OK),
+ * and place the error code within the function return.
+ *
+ * example:
+ *   return -SOCKS_ERR_SERV_FAIL;
+ */
 enum socks_err {
+	/* From SOCKS 5 specification */
 	SOCKS_ERR_OK = 0,
 	SOCKS_ERR_SERV_FAIL,
-	SOCKS_ERR_CONN_NOT_ALLOW,
+	SOCKS_ERR_CONN_NOTALLOW,
 	SOCKS_ERR_NET_UNREACH,
 	SOCKS_ERR_HOST_UNREACH,
 	SOCKS_ERR_CONN_REFUSED,
 	SOCKS_ERR_TTL_EXPIRED,
-	SOCKS_ERR_CMD_NOT_SUPP,
-	SOCKS_ERR_ADDR_NOT_SUPP,
-	SOCKS_ERR_INVALID_AUTH,
-	SOCKS_ERR_INVALID_ARG
+	SOCKS_ERR_CMD_NOTSUPP,
+	SOCKS_ERR_ADDR_NOTSUPP,
+	/* sockslib */
+	SOCKS_ERR_AUTH_NOTSUPP,
+	SOCKS_ERR_BAD_AUTH,
+	SOCKS_ERR_TOO_LONG,
+	SOCKS_ERR_NO_MEM,
+	SOCKS_ERR_BAD_ARG,
+	SOCKS_ERR_SYS_ERRNO
 };
 
 /* SOCKS server information */
