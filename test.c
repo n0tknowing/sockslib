@@ -24,11 +24,13 @@ int main(int argc, char **argv)
 	if (argc < 4)
 		usage();
 
+	errno = 0;
+
 	const char *host = argv[1];
 	const char *port = argv[2];
 	const char *method = argv[3];
 
-	int ret = 1, fd;
+	int ret = 1;
 	struct socks_ctx *ctx = socks_init();
 	if (!ctx)
 		err(1, "socks_init");
@@ -64,20 +66,20 @@ int main(int argc, char **argv)
 		goto fail;
 
 	/* now, perform the request */
-	fd = socks_connect(ctx);
-	if (fd < 0)
+	ret = socks_connect(ctx);
+	if (ret < 0)
 		goto fail;
 
 	/* if success, let's GET a HTTP web */
 	char buf[10];
 	ssize_t r, k = 1;
 
-	dprintf(fd, "GET / HTTP/1.1\r\n"
+	dprintf(ret, "GET / HTTP/1.1\r\n"
 		    "Host: %s:%s\r\n"
 		    "\r\n", host, port);
 
 	while (k) {
-		r = recv(fd, buf, 9, 0);
+		r = recv(ret, buf, 9, 0);
 		if (r != 9)
 			k = 0;
 		buf[r] = 0;
@@ -87,10 +89,12 @@ int main(int argc, char **argv)
 	printf("\n");
 
 fail:
-	if (errno)
-		perror(NULL);
-	else if (ret)
-		fprintf(stderr, "%s\n", socks_strerror(ret));
+	/* Example use of socks_strerror() and errno handling */
+	if (ret < 0) {
+		fprintf(stderr, "(%d): ", ret);
+		fprintf(stderr, "%s\n", ret == -SOCKS_ERR_SYS_ERRNO ?
+					strerror(errno) : socks_strerror(ret));
+	}
 
 	socks_end(ctx);
 	return ret;
