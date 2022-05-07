@@ -165,6 +165,7 @@ int socks_set_server(struct socks_ctx *ctx, const char *host, const char *port)
 
 	ctx->server.fd = fd;
 	ctx->server.s_addr = addr;
+	ctx->server.s_port = htons(atoi(port));
 	return SOCKS_ERR_OK;
 }
 
