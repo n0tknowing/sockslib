@@ -7,6 +7,7 @@
 - Only `CONNECT` command that currently supported when performing a SOCKS request.
 - TCP only (No UDP supported yet).
 - APIs are still unstable.
+- Only tested on Linux (glibc).
 
 ## API
 
