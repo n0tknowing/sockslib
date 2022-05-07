@@ -148,8 +148,11 @@ int socks_set_server(struct socks_ctx *ctx, const char *host, const char *port)
 	hint.ai_family = AF_INET;
 	hint.ai_socktype = SOCK_STREAM;
 
-	if (getaddrinfo(host, port, &hint, &res) < 0)
-		return -SOCKS_ERR_SYS_ERRNO;
+	if (getaddrinfo(host, port, &hint, &res) < 0) {
+		if (errno)
+			return -SOCKS_ERR_SYS_ERRNO;
+		return -SOCKS_ERR_CONN_REFUSED;
+	}
 
 	for (addr = res; addr; addr = addr->ai_next) {
 		fd = socket(AF_INET, SOCK_STREAM, 0);
