@@ -39,6 +39,57 @@ static int socks_get_auth_method(int fd)
 	return ret;
 }
 
+static int socks_do_authentication(struct socks_ctx *ctx)
+{
+	int ret;
+	size_t ul, pl;
+	ssize_t len = 0;
+	const char *u, *p;
+	unsigned char *auth_buf = NULL, resp_buf[2];
+
+	ul = ctx->auth.user_len;
+	pl = ctx->auth.pass_len;
+	u = ctx->auth.username;
+	p = ctx->auth.password;
+
+	auth_buf = malloc(3 + ul + pl);
+	if (!auth_buf)
+		return -SOCKS_ERR_NO_MEM;
+
+	/* RFC1929 authentication version */
+	auth_buf[len++] = SOCKS_AUTH_VERSION;
+
+	/* username */
+	auth_buf[len++] = ul;
+	memcpy(auth_buf + len, u, ul);
+	len += ul;
+
+	/* password */
+	auth_buf[len++] = pl;
+	memcpy(auth_buf + len, p, pl);
+	len += pl;
+
+	ret = sockslib_send(ctx->server.fd, auth_buf, len);
+	if (ret < 0)
+		goto malloc_cleanup;
+
+	ret = sockslib_read(ctx->server.fd, resp_buf, 2);
+	if (ret < 0)
+		goto malloc_cleanup;
+
+	if (resp_buf[1] != 0) {
+		ret = -SOCKS_ERR_BAD_AUTH;
+		goto malloc_cleanup;
+	}
+
+	ctx->auth.authed = 1;
+	ret = SOCKS_ERR_OK;
+
+malloc_cleanup:
+	free(auth_buf);
+	return ret;
+}
+
 static int socks_setaddr(int type, void *dest, const char *ip)
 {
 	int ret;
@@ -204,8 +255,6 @@ int socks_connect_server(struct socks_ctx *ctx)
 		return -SOCKS_ERR_BAD_ARG;
 
 	int ret;
-	ssize_t len = 0;
-	unsigned char *auth_buf = NULL, res_buf[2];
 
 	ret = connect(ctx->server.fd,
 		      ctx->server.s_addr->ai_addr,
@@ -224,38 +273,7 @@ int socks_connect_server(struct socks_ctx *ctx)
 		ret = SOCKS_ERR_OK;
 		break;
 	case SOCKS_AUTH_USERPASS:
-		auth_buf = malloc(3 + ctx->auth.user_len + ctx->auth.pass_len);
-		if (!auth_buf)
-			return -SOCKS_ERR_NO_MEM;
-
-		auth_buf[len++] = SOCKS_AUTH_VERSION;
-
-		auth_buf[len++] = ctx->auth.user_len;
-		memcpy(auth_buf + len, ctx->auth.username, ctx->auth.user_len);
-		len += ctx->auth.user_len;
-
-		auth_buf[len++] = ctx->auth.pass_len;
-		memcpy(auth_buf + len, ctx->auth.password, ctx->auth.pass_len);
-		len += ctx->auth.pass_len;
-
-		ret = sockslib_send(ctx->server.fd, auth_buf, len);
-		if (ret < 0)
-			goto malloc_cleanup;
-
-		ret = sockslib_read(ctx->server.fd, res_buf, 2);
-		if (ret < 0)
-			goto malloc_cleanup;
-
-		if (res_buf[1] != 0) {
-			ret = -SOCKS_ERR_BAD_AUTH;
-			goto malloc_cleanup;
-		}
-
-		ctx->auth.authed = 1;
-		ret = SOCKS_ERR_OK;
-malloc_cleanup:
-		free(auth_buf);
-		auth_buf = NULL;
+		ret = socks_do_authentication(ctx);
 		break;
 	default:
 		ret = -SOCKS_ERR_AUTH_NOTSUPP;
