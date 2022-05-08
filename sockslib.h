@@ -103,7 +103,8 @@ int socks_connect_server(struct socks_ctx *);
 int socks_set_addr4(struct socks_ctx *, const char *, const char *);
 int socks_set_addr6(struct socks_ctx *, const char *, const char *);
 int socks_set_addrname(struct socks_ctx *, const char *, const char *);
-int socks_connect(struct socks_ctx *);
+
+int socks_request_connect(struct socks_ctx *);
 
 const char *socks_strerror(int);
 

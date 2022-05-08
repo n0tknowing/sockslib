@@ -66,7 +66,7 @@ int main(int argc, char **argv)
 		goto fail;
 
 	/* now, perform the request */
-	ret = socks_connect(ctx);
+	ret = socks_request_connect(ctx);
 	if (ret < 0)
 		goto fail;
 

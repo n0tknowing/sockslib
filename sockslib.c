@@ -338,7 +338,7 @@ int socks_set_addrname(struct socks_ctx *ctx, const char *name, const char *port
 	return SOCKS_ERR_OK;
 }
 
-int socks_connect(struct socks_ctx *ctx)
+int socks_request_connect(struct socks_ctx *ctx)
 {
 	if (!ctx)
 		return -SOCKS_ERR_BAD_ARG;
