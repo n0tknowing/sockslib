@@ -15,9 +15,11 @@
 #include <unistd.h>
 
 #include "sockslib.h"
+#include "util.h"
 
 static int socks_get_auth_method(int fd)
 {
+	int ret;
 	unsigned char req_buf[4], resp_buf[2];
 
 	req_buf[0] = SOCKS_VERSION;
@@ -25,25 +27,26 @@ static int socks_get_auth_method(int fd)
 	req_buf[2] = SOCKS_NO_AUTH;
 	req_buf[3] = SOCKS_AUTH_USERPASS;
 
-	if (send(fd, req_buf, 4, 0) < 0)
-		return -SOCKS_ERR_SYS_ERRNO;
+	ret = sockslib_send(fd, req_buf, 4);
+	if (ret < 0)
+		return ret;
 
-	if (recv(fd, resp_buf, 2, 0) < 0)
-		return -SOCKS_ERR_SYS_ERRNO;
+	ret = sockslib_read(fd, resp_buf, 2);
+	if (ret < 0)
+		return ret;
 
-	return resp_buf[1];
+	ret = resp_buf[1];
+	return ret;
 }
 
 static int socks_setaddr(int type, void *dest, const char *ip)
 {
-	int ret = SOCKS_ERR_OK;
+	int ret;
 
-	if ((ret = inet_pton(type, ip, dest)) <= 0) {
-		if (ret == 0)
-			ret = -SOCKS_ERR_ADDR_NOTSUPP;
-		else
-			ret = -SOCKS_ERR_SYS_ERRNO;
-	}
+	if (inet_pton(type, ip, dest) <= 0)
+		ret = -SOCKS_ERR_ADDR_NOTSUPP;
+	else
+		ret = SOCKS_ERR_OK;
 
 	return ret;
 }
@@ -101,8 +104,8 @@ const char *socks_strerror(int code)
 		"Connection refused", "TTL expired", "Command not supported",
 		"Address type not supported", "Authentication method not supported",
 		"Invalid authentication", "Value too long",
-		"Memory allocation failure", "Invalid argument",
-		"System error (see errno)"
+		"Out of memory", "Invalid argument",
+		"Empty Request/Response", "System error (check errno)"
 	};
 
 	code = (code < 0) ? -code : code;
@@ -144,17 +147,35 @@ int socks_set_server(struct socks_ctx *ctx, const char *host, const char *port)
 	if (!port || !*port)
 		port = "1080";
 
-	int fd;
+	int fd, ret;
 	struct addrinfo hint, *res, *addr;
 	memset(&hint, 0, sizeof(hint));
 
 	hint.ai_family = AF_UNSPEC;
 	hint.ai_socktype = SOCK_STREAM;
 
-	if (getaddrinfo(host, port, &hint, &res) < 0) {
-		if (errno)
-			return -SOCKS_ERR_SYS_ERRNO;
-		return -SOCKS_ERR_CONN_REFUSED;
+	ret = getaddrinfo(host, port, &hint, &res);
+	switch (ret) {
+	case 0:
+		break;
+	case EAI_BADFLAGS:  /* useful for debugging */
+		ret = -SOCKS_ERR_BAD_ARG;
+		goto fail;
+	case EAI_AGAIN:
+		ret = -SOCKS_ERR_CONN_REFUSED;
+		goto fail;
+	case EAI_FAIL:
+		ret = -SOCKS_ERR_SERV_FAIL;
+		goto fail;
+	case EAI_MEMORY:
+		ret = -SOCKS_ERR_NO_MEM;
+		goto fail;
+	case EAI_SYSTEM:
+		ret = -SOCKS_ERR_SYS_ERRNO;
+		goto fail;
+	default:
+		ret = -SOCKS_ERR_ADDR_NOTSUPP;
+		goto fail;
 	}
 
 	for (addr = res; addr; addr = addr->ai_next) {
@@ -166,13 +187,15 @@ int socks_set_server(struct socks_ctx *ctx, const char *host, const char *port)
 
 	if (!addr) {
 		freeaddrinfo(res);
-		return -SOCKS_ERR_SERV_FAIL;
+		ret = -SOCKS_ERR_SERV_FAIL;
+		goto fail;
 	}
 
 	ctx->server.fd = fd;
 	ctx->server.s_addr = addr;
 	ctx->server.s_port = htons(atoi(port));
-	return SOCKS_ERR_OK;
+fail:
+	return ret;
 }
 
 int socks_connect_server(struct socks_ctx *ctx)
@@ -180,19 +203,25 @@ int socks_connect_server(struct socks_ctx *ctx)
 	if (!ctx)
 		return -SOCKS_ERR_BAD_ARG;
 
-	int ret = SOCKS_ERR_OK;
+	int ret;
 	ssize_t len = 0;
 	unsigned char *auth_buf = NULL, res_buf[2];
 
-	if (connect(ctx->server.fd,
-		    ctx->server.s_addr->ai_addr,
-		    ctx->server.s_addr->ai_addrlen) < 0)
-		return -SOCKS_ERR_SYS_ERRNO;
+	ret = connect(ctx->server.fd,
+		      ctx->server.s_addr->ai_addr,
+		      ctx->server.s_addr->ai_addrlen);
+	if (ret < 0)
+		return ret;
 
-	ctx->auth.method = socks_get_auth_method(ctx->server.fd);
+	ret = socks_get_auth_method(ctx->server.fd);
+	if (ret < 0)
+		return ret;
+
+	ctx->auth.method = ret;
 	switch (ctx->auth.method) {
 	case SOCKS_NO_AUTH:
 		ctx->auth.authed = 1;
+		ret = SOCKS_ERR_OK;
 		break;
 	case SOCKS_AUTH_USERPASS:
 		auth_buf = malloc(3 + ctx->auth.user_len + ctx->auth.pass_len);
@@ -209,23 +238,22 @@ int socks_connect_server(struct socks_ctx *ctx)
 		memcpy(auth_buf + len, ctx->auth.password, ctx->auth.pass_len);
 		len += ctx->auth.pass_len;
 
-		if (send(ctx->server.fd, auth_buf, len, 0) <= 0) {
-			ret = -SOCKS_ERR_BAD_AUTH;
-			goto auth_fail;
-		}
+		ret = sockslib_send(ctx->server.fd, auth_buf, len);
+		if (ret < 0)
+			goto malloc_cleanup;
 
-		if (recv(ctx->server.fd, res_buf, 2, 0) <= 0) {
-			ret = -SOCKS_ERR_BAD_AUTH;
-			goto auth_fail;
-		}
+		ret = sockslib_read(ctx->server.fd, res_buf, 2);
+		if (ret < 0)
+			goto malloc_cleanup;
 
 		if (res_buf[1] != 0) {
 			ret = -SOCKS_ERR_BAD_AUTH;
-			goto auth_fail;
+			goto malloc_cleanup;
 		}
 
 		ctx->auth.authed = 1;
-auth_fail:
+		ret = SOCKS_ERR_OK;
+malloc_cleanup:
 		free(auth_buf);
 		auth_buf = NULL;
 		break;
@@ -242,6 +270,9 @@ int socks_set_addr4(struct socks_ctx *ctx, const char *ip, const char *port)
 	if (!ctx)
 		return -SOCKS_ERR_BAD_ARG;
 
+	if (!ip || !*ip || !port || !*port)
+		return -SOCKS_ERR_BAD_ARG;
+
 	ctx->atyp = SOCKS_ATYP_IPV4;
 	ctx->d_port = htons(atoi(port));
 
@@ -251,6 +282,9 @@ int socks_set_addr4(struct socks_ctx *ctx, const char *ip, const char *port)
 int socks_set_addr6(struct socks_ctx *ctx, const char *ip, const char *port)
 {
 	if (!ctx)
+		return -SOCKS_ERR_BAD_ARG;
+
+	if (!ip || !*ip || !port || !*port)
 		return -SOCKS_ERR_BAD_ARG;
 
 	ctx->atyp = SOCKS_ATYP_IPV6;
@@ -264,7 +298,13 @@ int socks_set_addrname(struct socks_ctx *ctx, const char *name, const char *port
 	if (!ctx)
 		return -SOCKS_ERR_BAD_ARG;
 
+	if (!name || !*name || !port || !*port)
+		return -SOCKS_ERR_BAD_ARG;
+
 	ctx->d_name_len = strlen(name);
+	if (ctx->d_name_len > 255)
+		return -SOCKS_ERR_TOO_LONG;
+
 	ctx->atyp = SOCKS_ATYP_NAME;
 	ctx->d_port = htons(atoi(port));
 	memcpy(ctx->d_addr.name, name, ctx->d_name_len);
@@ -277,6 +317,7 @@ int socks_connect(struct socks_ctx *ctx)
 	if (!ctx)
 		return -SOCKS_ERR_BAD_ARG;
 
+	int ret;
 	unsigned char req_buf[512], resp_buf[512];  /* big enough? */
 	size_t len = 0;
 
@@ -306,11 +347,13 @@ int socks_connect(struct socks_ctx *ctx)
 	memcpy(req_buf + len, &ctx->d_port, 2);
 	len += 2;
 
-	if (send(ctx->server.fd, req_buf, len, 0) < 0)
-		return -SOCKS_ERR_SYS_ERRNO;
+	ret = sockslib_send(ctx->server.fd, req_buf, len);
+	if (ret < 0)
+		return ret;
 
-	if (recv(ctx->server.fd, resp_buf, len, 0) < 0)
-		return -SOCKS_ERR_SYS_ERRNO;
+	ret = sockslib_read(ctx->server.fd, resp_buf, len);
+	if (ret < 0)
+		return ret;
 
 	ctx->reply = resp_buf[1];
 	return ctx->reply ? -ctx->reply : ctx->server.fd;
