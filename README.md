@@ -69,7 +69,7 @@ int socks_set_addrname(struct socks_ctx *ctx, const char *name, const char *port
   like `send()`, `write()`, `recv()`, `read()`, etc..<br/>
   On error, it returns negative number.
 ```c
-int socks_connect(struct socks_ctx *ctx);
+int socks_request_connect(struct socks_ctx *ctx);
 ```
 
 #### Cleanup
