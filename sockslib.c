@@ -99,7 +99,7 @@ const char *socks_strerror(int code)
 		"", "SOCKS server failure", "Connection not allowed",
 		"Network unreachable", "Host unreachable",
 		"Connection refused", "TTL expired", "Command not supported",
-		"Address type not supported", "Authentication not supported",
+		"Address type not supported", "Authentication method not supported",
 		"Invalid authentication", "Value too long",
 		"Memory allocation failure", "Invalid argument",
 		"System error (see errno)"
@@ -138,14 +138,17 @@ int socks_set_auth(struct socks_ctx *ctx, const char *u, const char *p)
 
 int socks_set_server(struct socks_ctx *ctx, const char *host, const char *port)
 {
-	if (!ctx)
+	if (!ctx || !host || !*host)
 		return -SOCKS_ERR_BAD_ARG;
+
+	if (!port || !*port)
+		port = "1080";
 
 	int fd;
 	struct addrinfo hint, *res, *addr;
 	memset(&hint, 0, sizeof(hint));
 
-	hint.ai_family = AF_INET;
+	hint.ai_family = AF_UNSPEC;
 	hint.ai_socktype = SOCK_STREAM;
 
 	if (getaddrinfo(host, port, &hint, &res) < 0) {
@@ -155,7 +158,7 @@ int socks_set_server(struct socks_ctx *ctx, const char *host, const char *port)
 	}
 
 	for (addr = res; addr; addr = addr->ai_next) {
-		fd = socket(AF_INET, SOCK_STREAM, 0);
+		fd = socket(addr->ai_family, SOCK_STREAM, 0);
 		if (fd < 0)
 			continue;
 		break;
