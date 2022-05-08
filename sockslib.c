@@ -155,8 +155,8 @@ const char *socks_strerror(int code)
 		"Connection refused", "TTL expired", "Command not supported",
 		"Address type not supported", "Authentication method not supported",
 		"Invalid authentication", "Value too long",
-		"Out of memory", "Invalid argument",
-		"Empty Request/Response", "System error (check errno)"
+		"Out of memory", "Invalid argument", "Empty Request/Response",
+		"Connection timeout", "System error (check errno)"
 	};
 
 	code = (code < 0) ? -code : code;
@@ -242,6 +242,14 @@ int socks_set_server(struct socks_ctx *ctx, const char *host, const char *port)
 		goto fail;
 	}
 
+	ret = sockslib_set_nodelay(fd, 1);
+	if (ret < 0)
+		goto fail;
+
+	ret = sockslib_set_nonblock(fd, 1);
+	if (ret < 0)
+		goto fail;
+
 	ctx->server.fd = fd;
 	ctx->server.s_addr = addr;
 	ctx->server.s_port = htons(atoi(port));
@@ -256,9 +264,9 @@ int socks_connect_server(struct socks_ctx *ctx)
 
 	int ret;
 
-	ret = connect(ctx->server.fd,
-		      ctx->server.s_addr->ai_addr,
-		      ctx->server.s_addr->ai_addrlen);
+	ret = sockslib_connect(ctx->server.fd,
+			       ctx->server.s_addr->ai_addr,
+			       ctx->server.s_addr->ai_addrlen);
 	if (ret < 0)
 		return ret;
 
@@ -374,7 +382,17 @@ int socks_connect(struct socks_ctx *ctx)
 		return ret;
 
 	ctx->reply = resp_buf[1];
-	return ctx->reply ? -ctx->reply : ctx->server.fd;
+	if (ctx->reply == SOCKS_ERR_OK) {
+		ret = sockslib_set_nodelay(ctx->server.fd, 0);
+		if (ret < 0)
+			return ret;
+		ret = sockslib_set_nonblock(ctx->server.fd, 0);
+		if (ret < 0)
+			return ret;
+		return ctx->server.fd;
+	}
+
+	return -ctx->reply;
 }
 
 void socks_end(struct socks_ctx *ctx)
