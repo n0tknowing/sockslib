@@ -56,7 +56,7 @@ int socks_set_addr6(struct socks_ctx *ctx, const char *ipv6, const char *port);
 ```
 
 #### Set Fully qualified domain name and port of destination host
-- `name`:  Domain name of destination host you want to proxy.
+- `name`:  Domain name of destination host you want to proxy (Max 255 characters).
 - `port`:  Port number of destination host you want to proxy.
 - Return value: `SOCKS_ERR_OK (0)` on success, negative number on error.
 ```c
