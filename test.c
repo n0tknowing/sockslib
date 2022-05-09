@@ -43,8 +43,10 @@ int main(int argc, char **argv)
 		goto fail;
 #endif
 
-	/* set the SOCKS server here */
-	ret = socks_set_server(ctx, "socks5.foo-bar.org", "1773");
+	/* set the SOCKS server here.
+	 * port sets to NULL, it means we use the default port 1080
+	 */
+	ret = socks_set_server(ctx, "socks5.foo.bar", NULL);
 	if (ret < 0)
 		goto fail;
 
@@ -72,7 +74,7 @@ int main(int argc, char **argv)
 
 	/* success */
 	printf("Connected, file descriptor = %d\n", ret);
-
+	ret = 0;
 fail:
 	/* Example use of socks_strerror() and errno handling */
 	if (ret < 0) {
@@ -82,5 +84,5 @@ fail:
 	}
 
 	socks_end(ctx);
-	return ret;
+	return !!ret;
 }
