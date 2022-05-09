@@ -257,9 +257,15 @@ int socks_connect_server(struct socks_ctx *ctx)
 
 	int ret;
 
+	/* TODO: expose these variables to user */
+	int timeout_sec = 5;
+	int try_connect = timeout_sec * 2;
+
 	ret = sockslib_connect(ctx->server.fd,
 			       ctx->server.s_addr->ai_addr,
-			       ctx->server.s_addr->ai_addrlen);
+			       ctx->server.s_addr->ai_addrlen,
+			       timeout_sec,
+			       try_connect);
 	if (ret < 0)
 		return ret;
 
