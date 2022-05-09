@@ -1,3 +1,9 @@
+/*
+ * Nathanael Eka Oktavian <nathekavian@gmail.com>
+ *
+ * BSD-3-Clause
+ */
+
 #ifndef SOCKSLIB_UTIL_H
 #define SOCKSLIB_UTIL_H
 
