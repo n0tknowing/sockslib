@@ -210,23 +210,17 @@ int socks_set_server(struct socks_ctx *ctx, const char *host, const char *port)
 	case 0:
 		break;
 	case EAI_BADFLAGS:  /* useful for debugging */
-		ret = -SOCKS_ERR_BAD_ARG;
-		goto fail;
+		return -SOCKS_ERR_BAD_ARG;
 	case EAI_AGAIN:
-		ret = -SOCKS_ERR_CONN_REFUSED;
-		goto fail;
+		return -SOCKS_ERR_CONN_REFUSED;
 	case EAI_FAIL:
-		ret = -SOCKS_ERR_SERV_FAIL;
-		goto fail;
+		return -SOCKS_ERR_SERV_FAIL;
 	case EAI_MEMORY:
-		ret = -SOCKS_ERR_NO_MEM;
-		goto fail;
+		return -SOCKS_ERR_NO_MEM;
 	case EAI_SYSTEM:
-		ret = -SOCKS_ERR_SYS_ERRNO;
-		goto fail;
+		return -SOCKS_ERR_SYS_ERRNO;
 	default:
-		ret = -SOCKS_ERR_ADDR_NOTSUPP;
-		goto fail;
+		return -SOCKS_ERR_ADDR_NOTSUPP;
 	}
 
 	for (addr = res; addr; addr = addr->ai_next) {
@@ -238,22 +232,21 @@ int socks_set_server(struct socks_ctx *ctx, const char *host, const char *port)
 
 	if (!addr) {
 		freeaddrinfo(res);
-		ret = -SOCKS_ERR_SERV_FAIL;
-		goto fail;
+		return -SOCKS_ERR_SERV_FAIL;
 	}
 
 	ret = sockslib_set_nodelay(fd, 1);
 	if (ret < 0)
-		goto fail;
+		return ret;
 
 	ret = sockslib_set_nonblock(fd, 1);
 	if (ret < 0)
-		goto fail;
+		return ret;
 
 	ctx->server.fd = fd;
 	ctx->server.s_addr = addr;
 	ctx->server.s_port = htons(atoi(port));
-fail:
+
 	return ret;
 }
 

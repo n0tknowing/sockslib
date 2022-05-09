@@ -55,31 +55,22 @@ int sockslib_connect(int fd, const struct sockaddr *addr, socklen_t len)
 
 	ret = connect(fd, addr, len);
 	if (ret < 0) {
-		if (errno != EINPROGRESS) {
-			ret = -SOCKS_ERR_SYS_ERRNO;
-			goto done;
-		}
+		if (errno != EINPROGRESS && errno != EAGAIN && errno != EWOULDBLOCK)
+			return -SOCKS_ERR_SYS_ERRNO;
 
 		for (;;) {
 			FD_ZERO(&set);
 			FD_SET(fd, &set);
 
 			ret = select(fd + 1, NULL, &set, NULL, &tm);
-			if (ret < 0 && errno != EINTR) {
-				ret = -SOCKS_ERR_SYS_ERRNO;
-				goto done;
-			} else if (FD_ISSET(fd, &set)) {
-				ret = SOCKS_ERR_OK;
-				goto done;
-			} else {
-				ret = -SOCKS_ERR_CONN_TIMEOUT;
-				goto done;
-			}
+			if (ret < 0 && errno != EINTR)
+				return -SOCKS_ERR_SYS_ERRNO;
+			else if (ret > 0 && FD_ISSET(fd, &set))
+				return SOCKS_ERR_OK;
 		}
 	}
 
-done:
-	return ret;
+	return -SOCKS_ERR_CONN_TIMEOUT;
 }
 
 int sockslib_set_nonblock(int fd, int opt)
