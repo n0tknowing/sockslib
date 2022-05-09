@@ -44,33 +44,46 @@ int sockslib_read(int fd, void *buf, size_t len)
 	return ret ? SOCKS_ERR_OK : -SOCKS_ERR_EMPTY_RESP;
 }
 
-int sockslib_connect(int fd, const struct sockaddr *addr, socklen_t len)
+int sockslib_connect(int fd, const struct sockaddr *addr, socklen_t len,
+		     int timeout_sec, int try)
 {
 	int ret;
 	fd_set set;
+	int try_count;
 	struct timeval tm;
 
-	tm.tv_sec = 15;
-	tm.tv_usec = 0;
+	try_count = 0;
 
 	ret = connect(fd, addr, len);
 	if (ret < 0) {
-		if (errno != EINPROGRESS && errno != EAGAIN && errno != EWOULDBLOCK)
-			return -SOCKS_ERR_SYS_ERRNO;
-
 		for (;;) {
+			if (errno != EINPROGRESS &&
+			    errno != EAGAIN      &&
+			    errno != EWOULDBLOCK &&
+			    errno != EALREADY)
+				return -SOCKS_ERR_SYS_ERRNO;
+
+			tm.tv_sec = (time_t)timeout_sec;
+			tm.tv_usec = 0;
+
 			FD_ZERO(&set);
 			FD_SET(fd, &set);
 
 			ret = select(fd + 1, NULL, &set, NULL, &tm);
-			if (ret < 0 && errno != EINTR)
+			if (ret < 0 && errno != EINTR) {
 				return -SOCKS_ERR_SYS_ERRNO;
-			else if (ret > 0 && FD_ISSET(fd, &set))
-				return SOCKS_ERR_OK;
+			} else if (ret == 0) {
+				if (try_count++ < try)
+					continue;
+				return -SOCKS_ERR_CONN_TIMEOUT;
+			}
+
+			if (FD_ISSET(fd, &set))
+				break;
 		}
 	}
 
-	return -SOCKS_ERR_CONN_TIMEOUT;
+	return SOCKS_ERR_OK;
 }
 
 int sockslib_set_nonblock(int fd, int opt)
