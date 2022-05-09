@@ -1,5 +1,5 @@
 /*
- * Nathanael Eka Oktavian <nathanael@nand.eu.org>
+ * Nathanael Eka Oktavian <nathekavian@gmail.com>
  *
  * BSD-3-Clause
  */

@@ -1,3 +1,9 @@
+/*
+ * Nathanael Eka Oktavian <nathekavian@gmail.com>
+ *
+ * BSD-3-Clause
+ */
+
 #define _POSIX_C_SOURCE 200809L
 #include <err.h>
 #include <errno.h>
