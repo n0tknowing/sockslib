@@ -256,16 +256,9 @@ int socks_connect_server(struct socks_ctx *ctx)
 		return -SOCKS_ERR_BAD_ARG;
 
 	int ret;
-
-	/* TODO: expose these variables to user */
-	int timeout_sec = 5;
-	int try_connect = timeout_sec * 2;
-
 	ret = sockslib_connect(ctx->server.fd,
 			       ctx->server.s_addr->ai_addr,
-			       ctx->server.s_addr->ai_addrlen,
-			       timeout_sec,
-			       try_connect);
+			       ctx->server.s_addr->ai_addrlen);
 	if (ret < 0)
 		return ret;
 

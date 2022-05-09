@@ -11,76 +11,95 @@
 #include "sockslib.h"
 #include "util.h"
 
+int sockslib_wait(int fd, int method, int timeout_sec)
+{
+	if (method < SOCKSLIB_WREAD && method > SOCKSLIB_WCONN)
+		return -SOCKS_ERR_BAD_ARG;
+
+	if (timeout_sec < 0 && timeout_sec > 900)
+		return -SOCKS_ERR_TOO_LONG;
+
+	fd_set set;
+	int ret, try;
+	struct timeval tm;
+
+	ret = timeout_sec * 2;
+
+	for (try = ret < 25 ? ret : 25; try > 0; try--) {
+		if (errno		 &&
+		    errno != EINPROGRESS &&
+		    errno != EAGAIN	 &&
+		    errno != EWOULDBLOCK &&
+		    errno != EALREADY)
+			return -SOCKS_ERR_SYS_ERRNO;
+
+		tm.tv_sec = (time_t)timeout_sec;
+		tm.tv_usec = 0;
+
+		FD_ZERO(&set);
+		FD_SET(fd, &set);
+
+		switch (method) {
+		case SOCKSLIB_WSEND:
+		case SOCKSLIB_WCONN:
+			ret = select(fd + 1, NULL, &set, NULL, &tm);
+			break;
+		case SOCKSLIB_WREAD:
+			ret = select(fd + 1, &set, NULL, NULL, &tm);
+			break;
+		}
+
+		if (ret < 0 && errno != EINTR)
+			return -SOCKS_ERR_SYS_ERRNO;
+		else if (FD_ISSET(fd, &set))
+			return SOCKS_ERR_OK;
+	}
+
+	return -SOCKS_ERR_CONN_TIMEOUT;
+}
+
 int sockslib_send(int fd, const void *buf, size_t len)
 {
+	int rc;
 	ssize_t ret;
 	const unsigned char *send_buf = buf;
 
-	for (;;) {
-		ret = send(fd, send_buf, len, 0);
-		if (ret >= 0)
-			break;
+	rc = sockslib_wait(fd, SOCKSLIB_WSEND, 5);
+	if (rc < 0)
+		return rc;
 
-		if (errno != EAGAIN && errno != EWOULDBLOCK)
-			return -SOCKS_ERR_SYS_ERRNO;
-	}
+	ret = send(fd, send_buf, len, 0);
+	if (ret < 0)
+		return -SOCKS_ERR_SYS_ERRNO;
 
 	return ret ? SOCKS_ERR_OK : -SOCKS_ERR_EMPTY_RESP;
 }
 
 int sockslib_read(int fd, void *buf, size_t len)
 {
+	int rc;
 	ssize_t ret;
 
-	for (;;) {
-		ret = recv(fd, buf, len, 0);
-		if (ret >= 0)
-			break;
+	rc = sockslib_wait(fd, SOCKSLIB_WREAD, 5);
+	if (rc < 0)
+		return rc;
 
-		if (errno != EAGAIN && errno != EWOULDBLOCK)
-			return -SOCKS_ERR_SYS_ERRNO;
-	}
+	ret = recv(fd, buf, len, 0);
+	if (ret < 0)
+		return -SOCKS_ERR_SYS_ERRNO;
 
 	return ret ? SOCKS_ERR_OK : -SOCKS_ERR_EMPTY_RESP;
 }
 
-int sockslib_connect(int fd, const struct sockaddr *addr, socklen_t len,
-		     int timeout_sec, int try)
+int sockslib_connect(int fd, const struct sockaddr *addr, socklen_t len)
 {
 	int ret;
-	fd_set set;
-	int try_count;
-	struct timeval tm;
-
-	try_count = 0;
 
 	ret = connect(fd, addr, len);
 	if (ret < 0) {
-		for (;;) {
-			if (errno != EINPROGRESS &&
-			    errno != EAGAIN      &&
-			    errno != EWOULDBLOCK &&
-			    errno != EALREADY)
-				return -SOCKS_ERR_SYS_ERRNO;
-
-			tm.tv_sec = (time_t)timeout_sec;
-			tm.tv_usec = 0;
-
-			FD_ZERO(&set);
-			FD_SET(fd, &set);
-
-			ret = select(fd + 1, NULL, &set, NULL, &tm);
-			if (ret < 0 && errno != EINTR) {
-				return -SOCKS_ERR_SYS_ERRNO;
-			} else if (ret == 0) {
-				if (try_count++ < try)
-					continue;
-				return -SOCKS_ERR_CONN_TIMEOUT;
-			}
-
-			if (FD_ISSET(fd, &set))
-				break;
-		}
+		ret = sockslib_wait(fd, SOCKSLIB_WCONN, 5);
+		if (ret < 0)
+			return ret;
 	}
 
 	return SOCKS_ERR_OK;
