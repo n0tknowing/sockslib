@@ -22,9 +22,9 @@ enum socks_auth_method {
 };
 
 enum socks_cmd_method {
-	SOCKS_CMD_CONNECT = 1
-	/* SOCKS_CMD_BIND, */
-	/* SOCKS_CMD_UDP */
+	SOCKS_CMD_CONNECT = 1,
+	SOCKS_CMD_BIND,
+	SOCKS_CMD_UDP
 };
 
 enum socks_address_type {
@@ -105,6 +105,8 @@ int socks_set_addr6(struct socks_ctx *, const char *, const char *);
 int socks_set_addrname(struct socks_ctx *, const char *, const char *);
 
 int socks_request_connect(struct socks_ctx *);
+int socks_request_bind(struct socks_ctx *);
+int socks_request_udp(struct socks_ctx *);
 
 const char *socks_strerror(int);
 

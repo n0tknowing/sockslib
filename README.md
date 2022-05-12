@@ -4,7 +4,7 @@
 
 - It works on Domain name (ex. www.google.com), IPv4, and IPV6.
 - Only RFC1929 authentication method that currently supported.
-- Only `CONNECT` command that currently supported when performing a SOCKS request.
+- Command `CONNECT`, `BIND`, and `UDP Associate` are supported but only `CONNECT` that currently fully tested.
 - TCP only (No UDP supported yet).
 - APIs are still unstable.
 - Only tested on Linux (glibc).
@@ -63,13 +63,15 @@ int socks_set_addr6(struct socks_ctx *ctx, const char *ipv6, const char *port);
 int socks_set_addrname(struct socks_ctx *ctx, const char *name, const char *port);
 ```
 
-#### Perform a SOCKS request (CONNECT command)
-- Return value: On success, it returns a file descriptor that you can use
+#### Perform a SOCKS requess
+- Return value: On success, these functions return a file descriptor that you can use
   just like a simple `socket()` + `connect()` socket, you can use socket operations
   like `send()`, `write()`, `recv()`, `read()`, etc..<br/>
   On error, it returns negative number.
 ```c
 int socks_request_connect(struct socks_ctx *ctx);
+int socks_request_bind(struct socks_ctx *ctx);
+int socks_request_udp(struct socks_ctx *ctx);
 ```
 
 #### Cleanup

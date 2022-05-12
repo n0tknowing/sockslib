@@ -102,6 +102,63 @@ static int socks_setaddr(int type, void *dest, const char *ip)
 	return ret;
 }
 
+static int socks_request(struct socks_ctx *ctx, int method)
+{
+	if (!ctx)
+		return -SOCKS_ERR_BAD_ARG;
+
+	int ret;
+	unsigned char req_buf[512], resp_buf[512];  /* big enough? */
+	size_t len = 0;
+
+	req_buf[len++] = SOCKS_VERSION;
+	req_buf[len++] = method;
+	req_buf[len++] = 0x00; /* reserved */
+	req_buf[len++] = ctx->atyp;
+
+	switch (ctx->atyp) {
+	case SOCKS_ATYP_IPV4: /* ipv4 */
+		memcpy(req_buf + len, ctx->d_addr.ip4, 4);
+		len += 4;
+		break;
+	case SOCKS_ATYP_NAME: /* domain name */
+		req_buf[len++] = ctx->d_name_len;
+		memcpy(req_buf + len, ctx->d_addr.name, ctx->d_name_len);
+		len += ctx->d_name_len;
+		break;
+	case SOCKS_ATYP_IPV6: /* ipv6 */
+		memcpy(req_buf + len, ctx->d_addr.ip6, 16);
+		len += 16;
+		break;
+	default:
+		return -SOCKS_ERR_ADDR_NOTSUPP;
+	}
+
+	memcpy(req_buf + len, &ctx->d_port, 2);
+	len += 2;
+
+	ret = sockslib_send(ctx->server.fd, req_buf, len);
+	if (ret < 0)
+		return ret;
+
+	ret = sockslib_read(ctx->server.fd, resp_buf, len);
+	if (ret < 0)
+		return ret;
+
+	ctx->reply = resp_buf[1];
+	if (ctx->reply == SOCKS_ERR_OK) {
+		ret = sockslib_set_nodelay(ctx->server.fd, 0);
+		if (ret < 0)
+			return ret;
+		ret = sockslib_set_nonblock(ctx->server.fd, 0);
+		if (ret < 0)
+			return ret;
+		return ctx->server.fd;
+	}
+
+	return -ctx->reply;
+}
+
 static void server_clear(struct socks_ctx *ctx)
 {
 	struct socks_server *s;
@@ -332,59 +389,17 @@ int socks_set_addrname(struct socks_ctx *ctx, const char *name, const char *port
 
 int socks_request_connect(struct socks_ctx *ctx)
 {
-	if (!ctx)
-		return -SOCKS_ERR_BAD_ARG;
+	return socks_request(ctx, SOCKS_CMD_CONNECT);
+}
 
-	int ret;
-	unsigned char req_buf[512], resp_buf[512];  /* big enough? */
-	size_t len = 0;
+int socks_request_bind(struct socks_ctx *ctx)
+{
+	return socks_request(ctx, SOCKS_CMD_BIND);
+}
 
-	req_buf[len++] = SOCKS_VERSION;
-	req_buf[len++] = SOCKS_CMD_CONNECT;
-	req_buf[len++] = 0x00; /* reserved */
-	req_buf[len++] = ctx->atyp;
-
-	switch (ctx->atyp) {
-	case SOCKS_ATYP_IPV4: /* ipv4 */
-		memcpy(req_buf + len, ctx->d_addr.ip4, 4);
-		len += 4;
-		break;
-	case SOCKS_ATYP_NAME: /* domain name */
-		req_buf[len++] = ctx->d_name_len;
-		memcpy(req_buf + len, ctx->d_addr.name, ctx->d_name_len);
-		len += ctx->d_name_len;
-		break;
-	case SOCKS_ATYP_IPV6: /* ipv6 */
-		memcpy(req_buf + len, ctx->d_addr.ip6, 16);
-		len += 16;
-		break;
-	default:
-		return -SOCKS_ERR_ADDR_NOTSUPP;
-	}
-
-	memcpy(req_buf + len, &ctx->d_port, 2);
-	len += 2;
-
-	ret = sockslib_send(ctx->server.fd, req_buf, len);
-	if (ret < 0)
-		return ret;
-
-	ret = sockslib_read(ctx->server.fd, resp_buf, len);
-	if (ret < 0)
-		return ret;
-
-	ctx->reply = resp_buf[1];
-	if (ctx->reply == SOCKS_ERR_OK) {
-		ret = sockslib_set_nodelay(ctx->server.fd, 0);
-		if (ret < 0)
-			return ret;
-		ret = sockslib_set_nonblock(ctx->server.fd, 0);
-		if (ret < 0)
-			return ret;
-		return ctx->server.fd;
-	}
-
-	return -ctx->reply;
+int socks_request_udp(struct socks_ctx *ctx)
+{
+	return socks_request(ctx, SOCKS_CMD_UDP);
 }
 
 void socks_end(struct socks_ctx *ctx)
