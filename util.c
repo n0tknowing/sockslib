@@ -22,7 +22,7 @@ int sockslib_wait(int fd, int method, int timeout_sec)
 	if (method < SOCKSLIB_WREAD && method > SOCKSLIB_WCONN)
 		return -SOCKS_ERR_BAD_ARG;
 
-	if (timeout_sec < 0 && timeout_sec > 900)
+	if (timeout_sec < 0 || timeout_sec > 900)
 		return -SOCKS_ERR_TOO_LONG;
 
 	fd_set set;
