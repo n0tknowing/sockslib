@@ -147,12 +147,8 @@ static int socks_request(struct socks_ctx *ctx, int method)
 
 	ctx->reply = resp_buf[1];
 	if (ctx->reply == SOCKS_OK) {
-		ret = sockslib_set_nodelay(ctx->server.fd, 0);
-		if (ret < 0)
-			return ret;
-		ret = sockslib_set_nonblock(ctx->server.fd, 0);
-		if (ret < 0)
-			return ret;
+		sockslib_set_nodelay(ctx->server.fd, 0);
+		sockslib_set_nonblock(ctx->server.fd, 0);
 		return ctx->server.fd;
 	}
 
@@ -292,13 +288,8 @@ int socks_set_server(struct socks_ctx *ctx, const char *host, const char *port)
 		return -SOCKS_ESERVFAIL;
 	}
 
-	ret = sockslib_set_nodelay(fd, 1);
-	if (ret < 0)
-		return ret;
-
-	ret = sockslib_set_nonblock(fd, 1);
-	if (ret < 0)
-		return ret;
+	sockslib_set_nodelay(fd, 1);
+	sockslib_set_nonblock(fd, 1);
 
 	ctx->server.fd = fd;
 	ctx->server.s_addr = addr;

@@ -111,32 +111,23 @@ int sockslib_connect(int fd, const struct sockaddr *addr, socklen_t len)
 	return SOCKS_OK;
 }
 
-int sockslib_set_nonblock(int fd, int opt)
+void sockslib_set_nonblock(int fd, int opt)
 {
-	int ret;
+	int flags;
 
-	ret = fcntl(fd, F_GETFL, NULL);
-	if (ret < 0)
-		return -SOCKS_ESYS;
+	flags = fcntl(fd, F_GETFL, NULL);
+	opt = !!opt;
 
 	if (opt)
-		ret |= O_NONBLOCK;
+		flags |= O_NONBLOCK;
 	else
-		ret &= (~O_NONBLOCK);
+		flags &= (~O_NONBLOCK);
 
-	if (fcntl(fd, F_SETFL, ret) < 0)
-		return -SOCKS_ESYS;
-
-	return SOCKS_OK;
+	fcntl(fd, F_SETFL, flags);
 }
 
-int sockslib_set_nodelay(int fd, int opt)
+void sockslib_set_nodelay(int fd, int opt)
 {
-	int ret;
-
-	ret = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(int));
-	if (ret < 0)
-		return -SOCKS_ESYS;
-
-	return SOCKS_OK;
+	opt = !!opt;
+	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(int));
 }
