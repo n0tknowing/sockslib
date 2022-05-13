@@ -25,18 +25,12 @@ struct socks_ctx *socks_init(void);
 int socks_set_auth(struct socks_ctx *ctx, const char *user, const char *pass);
 ```
 
-#### Set SOCKS server
+#### Set and connect to SOCKS server
 - `host`:  SOCKS server, it can be IPv4 or IPv6 or Domain name.
 - `port`:  If sets to NULL, default to 1080.
 - Return value: `SOCKS_OK (0)` on success, negative number on error.
 ```c
-int socks_set_server(struct socks_ctx *ctx, const char *host, const char *port);
-```
-
-#### Connect to the SOCKS server
-- Return value: `SOCKS_OK (0)` on success, negative number on error.
-```c
-int socks_connect_server(struct socks_ctx *ctx);
+int socks_connect_server(struct socks_ctx *ctx, const char *host, const char *port);
 ```
 
 #### Set IPv4 address and port of destination host
