@@ -150,6 +150,8 @@ static int socks_set_server(struct socks_ctx *ctx, const char *host, const char 
 	sockslib_set_nodelay(fd, 1);
 	sockslib_set_nonblock(fd, 1);
 
+	ctx->server.nblock = 1;
+	ctx->server.ndelay = 1;
 	ctx->server.fd = fd;
 	ctx->server.s_addr = addr;
 	ctx->server.s_port = htons(atoi(port));
@@ -192,6 +194,21 @@ static int socks_request(struct socks_ctx *ctx, int method)
 	memcpy(req_buf + len, &ctx->d_port, 2);
 	len += 2;
 
+	/* one time nodelay and nonblock.
+	 *
+	 * in case user already sets SOCKS server and success performing SOCKS
+	 * request (that is, the first SOCKS request), the file descriptor is
+	 * restored its state to blocking and delay.
+	 * so here, one time nodelay and nonblock is set before performing
+	 * SOCKS request again.
+	 */
+	if (!ctx->server.nblock) {
+		sockslib_set_nodelay(ctx->server.fd, 1);
+		sockslib_set_nonblock(ctx->server.fd, 1);
+		ctx->server.nblock = 1;
+		ctx->server.ndelay = 1;
+	}
+
 	ret = sockslib_send(ctx->server.fd, req_buf, len);
 	if (ret < 0)
 		return ret;
@@ -204,6 +221,8 @@ static int socks_request(struct socks_ctx *ctx, int method)
 	if (ctx->reply == SOCKS_OK) {
 		sockslib_set_nodelay(ctx->server.fd, 0);
 		sockslib_set_nonblock(ctx->server.fd, 0);
+		ctx->server.nblock = 0;
+		ctx->server.ndelay = 0;
 		return ctx->server.fd;
 	}
 
@@ -218,6 +237,8 @@ static void server_clear(struct socks_ctx *ctx)
 	s->s_addr = NULL;
 	s->s_port = 0;
 	s->fd = -1;
+	s->nblock = 0;
+	s->ndelay = 0;
 }
 
 static void auth_clear(struct socks_ctx *ctx)

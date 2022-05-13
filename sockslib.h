@@ -67,6 +67,7 @@ struct socks_server {
 	struct addrinfo *s_addr;  /* Address information */
 	uint16_t s_port;  /* Connected port */
 	int fd; /* The file descriptor that will used after a SOCKS request */
+	int nblock, ndelay;  /* nonblock and nodelay state */
 };
 
 /* SOCKS authentication (V5 only) */
