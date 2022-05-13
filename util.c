@@ -20,10 +20,10 @@
 int sockslib_wait(int fd, int method, int timeout_sec)
 {
 	if (method < SOCKSLIB_WREAD && method > SOCKSLIB_WCONN)
-		return -SOCKS_ERR_BAD_ARG;
+		return -SOCKS_EARG;
 
 	if (timeout_sec < 0 || timeout_sec > 900)
-		return -SOCKS_ERR_TOO_LONG;
+		return -SOCKS_ELONG;
 
 	fd_set set;
 	int ret, try;
@@ -37,7 +37,7 @@ int sockslib_wait(int fd, int method, int timeout_sec)
 		    errno != EAGAIN	 &&
 		    errno != EWOULDBLOCK &&
 		    errno != EALREADY)
-			return -SOCKS_ERR_SYS_ERRNO;
+			return -SOCKS_ESYS;
 
 		tm.tv_sec = (time_t)timeout_sec;
 		tm.tv_usec = 0;
@@ -56,12 +56,12 @@ int sockslib_wait(int fd, int method, int timeout_sec)
 		}
 
 		if (ret < 0 && errno != EINTR)
-			return -SOCKS_ERR_SYS_ERRNO;
+			return -SOCKS_ESYS;
 		else if (FD_ISSET(fd, &set))
-			return SOCKS_ERR_OK;
+			return SOCKS_OK;
 	}
 
-	return -SOCKS_ERR_CONN_TIMEOUT;
+	return -SOCKS_ETIMEOUT;
 }
 
 int sockslib_send(int fd, const void *buf, size_t len)
@@ -76,9 +76,9 @@ int sockslib_send(int fd, const void *buf, size_t len)
 
 	ret = send(fd, send_buf, len, 0);
 	if (ret < 0)
-		return -SOCKS_ERR_SYS_ERRNO;
+		return -SOCKS_ESYS;
 
-	return ret ? SOCKS_ERR_OK : -SOCKS_ERR_EMPTY_RESP;
+	return ret ? SOCKS_OK : -SOCKS_EEMPTY;
 }
 
 int sockslib_read(int fd, void *buf, size_t len)
@@ -92,9 +92,9 @@ int sockslib_read(int fd, void *buf, size_t len)
 
 	ret = recv(fd, buf, len, 0);
 	if (ret < 0)
-		return -SOCKS_ERR_SYS_ERRNO;
+		return -SOCKS_ESYS;
 
-	return ret ? SOCKS_ERR_OK : -SOCKS_ERR_EMPTY_RESP;
+	return ret ? SOCKS_OK : -SOCKS_EEMPTY;
 }
 
 int sockslib_connect(int fd, const struct sockaddr *addr, socklen_t len)
@@ -108,7 +108,7 @@ int sockslib_connect(int fd, const struct sockaddr *addr, socklen_t len)
 			return ret;
 	}
 
-	return SOCKS_ERR_OK;
+	return SOCKS_OK;
 }
 
 int sockslib_set_nonblock(int fd, int opt)
@@ -117,7 +117,7 @@ int sockslib_set_nonblock(int fd, int opt)
 
 	ret = fcntl(fd, F_GETFL, NULL);
 	if (ret < 0)
-		return -SOCKS_ERR_SYS_ERRNO;
+		return -SOCKS_ESYS;
 
 	if (opt)
 		ret |= O_NONBLOCK;
@@ -125,9 +125,9 @@ int sockslib_set_nonblock(int fd, int opt)
 		ret &= (~O_NONBLOCK);
 
 	if (fcntl(fd, F_SETFL, ret) < 0)
-		return -SOCKS_ERR_SYS_ERRNO;
+		return -SOCKS_ESYS;
 
-	return SOCKS_ERR_OK;
+	return SOCKS_OK;
 }
 
 int sockslib_set_nodelay(int fd, int opt)
@@ -136,7 +136,7 @@ int sockslib_set_nodelay(int fd, int opt)
 
 	ret = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(int));
 	if (ret < 0)
-		return -SOCKS_ERR_SYS_ERRNO;
+		return -SOCKS_ESYS;
 
-	return SOCKS_ERR_OK;
+	return SOCKS_OK;
 }
