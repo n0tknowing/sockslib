@@ -1,4 +1,4 @@
-# sockslib - simple SOCKS client library
+# sockslib - client-side SOCKS library
 
 ## Status
 
@@ -57,7 +57,7 @@ int socks_set_addr6(struct socks_ctx *ctx, const char *ipv6, const char *port);
 int socks_set_addrname(struct socks_ctx *ctx, const char *name, const char *port);
 ```
 
-#### Perform a SOCKS requess
+#### Perform a SOCKS request
 - Return value: On success, these functions return a file descriptor that you can use
   just like a simple `socket()` + `connect()` socket, you can use socket operations
   like `send()`, `write()`, `recv()`, `read()`, etc..<br/>
