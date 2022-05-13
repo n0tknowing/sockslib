@@ -20,7 +20,7 @@ struct socks_ctx *socks_init(void);
 #### Set authentication
 - `user`:  NUL-terminated RFC 1929 Username (Max 255 characters).
 - `pass`:  NUL-terminated RFC 1929 Password (Max 255 characters).
-- Return value: `SOCKS_ERR_OK (0)` on success, negative number on error.
+- Return value: `SOCKS_OK (0)` on success, negative number on error.
 ```c
 int socks_set_auth(struct socks_ctx *ctx, const char *user, const char *pass);
 ```
@@ -28,13 +28,13 @@ int socks_set_auth(struct socks_ctx *ctx, const char *user, const char *pass);
 #### Set SOCKS server
 - `host`:  SOCKS server, it can be IPv4 or IPv6 or Domain name.
 - `port`:  If sets to NULL, default to 1080.
-- Return value: `SOCKS_ERR_OK (0)` on success, negative number on error.
+- Return value: `SOCKS_OK (0)` on success, negative number on error.
 ```c
 int socks_set_server(struct socks_ctx *ctx, const char *host, const char *port);
 ```
 
 #### Connect to the SOCKS server
-- Return value: `SOCKS_ERR_OK (0)` on success, negative number on error.
+- Return value: `SOCKS_OK (0)` on success, negative number on error.
 ```c
 int socks_connect_server(struct socks_ctx *ctx);
 ```
@@ -42,7 +42,7 @@ int socks_connect_server(struct socks_ctx *ctx);
 #### Set IPv4 address and port of destination host
 - `ipv4`:  IPv4 address of destination host you want to proxy.
 - `port`:  Port number of destination host you want to proxy.
-- Return value: `SOCKS_ERR_OK (0)` on success, negative number on error.
+- Return value: `SOCKS_OK (0)` on success, negative number on error.
 ```c
 int socks_set_addr4(struct socks_ctx *ctx, const char *ipv4, const char *port);
 ```
@@ -50,7 +50,7 @@ int socks_set_addr4(struct socks_ctx *ctx, const char *ipv4, const char *port);
 #### Set IPv6 address and port of destination host
 - `ipv6`:  IPv6 address of destination host you want to proxy.
 - `port`:  Port number of destination host you want to proxy.
-- Return value: `SOCKS_ERR_OK (0)` on success, negative number on error.
+- Return value: `SOCKS_OK (0)` on success, negative number on error.
 ```c
 int socks_set_addr6(struct socks_ctx *ctx, const char *ipv6, const char *port);
 ```
@@ -58,7 +58,7 @@ int socks_set_addr6(struct socks_ctx *ctx, const char *ipv6, const char *port);
 #### Set Fully qualified domain name and port of destination host
 - `name`:  Domain name of destination host you want to proxy (Max 255 characters).
 - `port`:  Port number of destination host you want to proxy.
-- Return value: `SOCKS_ERR_OK (0)` on success, negative number on error.
+- Return value: `SOCKS_OK (0)` on success, negative number on error.
 ```c
 int socks_set_addrname(struct socks_ctx *ctx, const char *name, const char *port);
 ```

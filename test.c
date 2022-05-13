@@ -85,8 +85,8 @@ fail:
 	/* Example use of socks_strerror() and errno handling */
 	if (ret < 0) {
 		fprintf(stderr, "(%d): ", ret);
-		fprintf(stderr, "%s\n", ret == -SOCKS_ERR_SYS_ERRNO ?
-					strerror(errno) : socks_strerror(ret));
+		fprintf(stderr, "%s\n", ret == -SOCKS_ESYS ? strerror(errno)
+					: socks_strerror(ret));
 	}
 
 	socks_end(ctx);
