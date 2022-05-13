@@ -49,15 +49,10 @@ int main(int argc, char **argv)
 		goto fail;
 #endif
 
-	/* set the SOCKS server here.
+	/* set and connect to SOCKS server here.
 	 * port sets to NULL, it means we use the default port 1080
 	 */
-	ret = socks_set_server(ctx, "socks5.foo.bar", NULL);
-	if (ret < 0)
-		goto fail;
-
-	/* then, connect it */
-	ret = socks_connect_server(ctx);
+	ret = socks_connect_server(ctx, "socks5.foo.bar", NULL);
 	if (ret < 0)
 		goto fail;
 

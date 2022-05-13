@@ -102,6 +102,61 @@ static int socks_setaddr(int type, void *dest, const char *ip)
 	return ret;
 }
 
+static int socks_set_server(struct socks_ctx *ctx, const char *host, const char *port)
+{
+	if (!ctx || !host || !*host)
+		return -SOCKS_EARG;
+
+	if (!port || !*port)
+		port = "1080";
+
+	int fd, ret;
+	struct addrinfo hint, *res, *addr;
+	memset(&hint, 0, sizeof(hint));
+
+	hint.ai_family = AF_UNSPEC;
+	hint.ai_socktype = SOCK_STREAM;
+
+	ret = getaddrinfo(host, port, &hint, &res);
+	switch (ret) {
+	case 0:
+		break;
+	case EAI_BADFLAGS:  /* useful for debugging */
+		return -SOCKS_EARG;
+	case EAI_AGAIN:
+		return -SOCKS_ECONNREFUSED;
+	case EAI_FAIL:
+		return -SOCKS_ESERVFAIL;
+	case EAI_MEMORY:
+		return -SOCKS_ENOMEM;
+	case EAI_SYSTEM:
+		return -SOCKS_ESYS;
+	default:
+		return -SOCKS_EADDR;
+	}
+
+	for (addr = res; addr; addr = addr->ai_next) {
+		fd = socket(addr->ai_family, SOCK_STREAM, 0);
+		if (fd < 0)
+			continue;
+		break;
+	}
+
+	if (!addr) {
+		freeaddrinfo(res);
+		return -SOCKS_ESERVFAIL;
+	}
+
+	sockslib_set_nodelay(fd, 1);
+	sockslib_set_nonblock(fd, 1);
+
+	ctx->server.fd = fd;
+	ctx->server.s_addr = addr;
+	ctx->server.s_port = htons(atoi(port));
+
+	return ret;
+}
+
 static int socks_request(struct socks_ctx *ctx, int method)
 {
 	if (!ctx)
@@ -178,6 +233,9 @@ static void auth_clear(struct socks_ctx *ctx)
 	a->pass_len = 0;
 }
 
+/* ========================================================= */
+/* ========================================================= */
+
 struct socks_ctx *socks_init(void)
 {
 	struct socks_ctx *ctx;
@@ -243,67 +301,14 @@ int socks_set_auth(struct socks_ctx *ctx, const char *u, const char *p)
 	return SOCKS_OK;
 }
 
-int socks_set_server(struct socks_ctx *ctx, const char *host, const char *port)
+int socks_connect_server(struct socks_ctx *ctx, const char *host, const char *port)
 {
-	if (!ctx || !host || !*host)
-		return -SOCKS_EARG;
-
-	if (!port || !*port)
-		port = "1080";
-
-	int fd, ret;
-	struct addrinfo hint, *res, *addr;
-	memset(&hint, 0, sizeof(hint));
-
-	hint.ai_family = AF_UNSPEC;
-	hint.ai_socktype = SOCK_STREAM;
-
-	ret = getaddrinfo(host, port, &hint, &res);
-	switch (ret) {
-	case 0:
-		break;
-	case EAI_BADFLAGS:  /* useful for debugging */
-		return -SOCKS_EARG;
-	case EAI_AGAIN:
-		return -SOCKS_ECONNREFUSED;
-	case EAI_FAIL:
-		return -SOCKS_ESERVFAIL;
-	case EAI_MEMORY:
-		return -SOCKS_ENOMEM;
-	case EAI_SYSTEM:
-		return -SOCKS_ESYS;
-	default:
-		return -SOCKS_EADDR;
-	}
-
-	for (addr = res; addr; addr = addr->ai_next) {
-		fd = socket(addr->ai_family, SOCK_STREAM, 0);
-		if (fd < 0)
-			continue;
-		break;
-	}
-
-	if (!addr) {
-		freeaddrinfo(res);
-		return -SOCKS_ESERVFAIL;
-	}
-
-	sockslib_set_nodelay(fd, 1);
-	sockslib_set_nonblock(fd, 1);
-
-	ctx->server.fd = fd;
-	ctx->server.s_addr = addr;
-	ctx->server.s_port = htons(atoi(port));
-
-	return ret;
-}
-
-int socks_connect_server(struct socks_ctx *ctx)
-{
-	if (!ctx)
-		return -SOCKS_EARG;
-
 	int ret;
+
+	ret = socks_set_server(ctx, host, port);
+	if (ret < 0)
+		return ret;
+
 	ret = sockslib_connect(ctx->server.fd,
 			       ctx->server.s_addr->ai_addr,
 			       ctx->server.s_addr->ai_addrlen);
