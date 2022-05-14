@@ -113,7 +113,9 @@ int sockslib_connect(int fd, const struct sockaddr *addr, socklen_t len)
 
 void sockslib_set_nonblock(int fd, int opt)
 {
-	int flags;
+	int flags, saved_errno;
+
+	saved_errno = errno;
 
 	flags = fcntl(fd, F_GETFL, NULL);
 	opt = !!opt;
@@ -124,10 +126,18 @@ void sockslib_set_nonblock(int fd, int opt)
 		flags &= (~O_NONBLOCK);
 
 	fcntl(fd, F_SETFL, flags);
+
+	errno = saved_errno;
 }
 
 void sockslib_set_nodelay(int fd, int opt)
 {
+	int saved_errno;
+
+	saved_errno = errno;
 	opt = !!opt;
+
 	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(int));
+
+	errno = saved_errno;
 }
