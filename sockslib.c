@@ -17,6 +17,10 @@
 #include "sockslib.h"
 #include "util.h"
 
+/* ========================================================== */
+/*            P R I V A T E    I N T E R F A C E              */
+/* ========================================================== */
+
 static int socks_get_auth_method(int fd)
 {
 	int ret;
@@ -147,11 +151,8 @@ static int socks_set_server(struct socks_ctx *ctx, const char *host, const char 
 		return -SOCKS_ESERVFAIL;
 	}
 
-	sockslib_set_nodelay(fd, 1);
-	sockslib_set_nonblock(fd, 1);
-
-	ctx->server.nblock = 1;
-	ctx->server.ndelay = 1;
+	ctx->server.ndelay = sockslib_set_nodelay(fd, 1);
+	ctx->server.nblock = sockslib_set_nonblock(fd, 1);
 	ctx->server.fd = fd;
 	ctx->server.s_addr = addr;
 	ctx->server.s_port = htons(atoi(port));
@@ -203,10 +204,8 @@ static int socks_request(struct socks_ctx *ctx, int method)
 	 * SOCKS request again.
 	 */
 	if (!ctx->server.nblock) {
-		sockslib_set_nodelay(ctx->server.fd, 1);
-		sockslib_set_nonblock(ctx->server.fd, 1);
-		ctx->server.nblock = 1;
-		ctx->server.ndelay = 1;
+		ctx->server.ndelay = sockslib_set_nodelay(ctx->server.fd, 1);
+		ctx->server.nblock = sockslib_set_nonblock(ctx->server.fd, 1);
 	}
 
 	ret = sockslib_send(ctx->server.fd, req_buf, len);
@@ -219,10 +218,8 @@ static int socks_request(struct socks_ctx *ctx, int method)
 
 	ctx->reply = resp_buf[1];
 	if (ctx->reply == SOCKS_OK) {
-		sockslib_set_nodelay(ctx->server.fd, 0);
-		sockslib_set_nonblock(ctx->server.fd, 0);
-		ctx->server.nblock = 0;
-		ctx->server.ndelay = 0;
+		ctx->server.ndelay = sockslib_set_nodelay(ctx->server.fd, 0);
+		ctx->server.nblock = sockslib_set_nonblock(ctx->server.fd, 0);
 		return ctx->server.fd;
 	}
 
@@ -254,8 +251,9 @@ static void auth_clear(struct socks_ctx *ctx)
 	a->pass_len = 0;
 }
 
-/* ========================================================= */
-/* ========================================================= */
+/* ========================================================== */
+/*              P U B L I C    I N T E R F A C E              */
+/* ========================================================== */
 
 struct socks_ctx *socks_init(void)
 {
