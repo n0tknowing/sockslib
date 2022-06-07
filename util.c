@@ -25,6 +25,8 @@ int sockslib_wait(int fd, int method, int timeout_sec)
 	if (timeout_sec < 0 || timeout_sec > 900)
 		return -SOCKS_ELONG;
 
+	errno = 0;
+
 	fd_set set;
 	int ret, try;
 	struct timeval tm;
@@ -32,13 +34,6 @@ int sockslib_wait(int fd, int method, int timeout_sec)
 	ret = timeout_sec * 2;
 
 	for (try = ret < 25 ? ret : 25; try > 0; try--) {
-		if (errno		 &&
-		    errno != EINPROGRESS &&
-		    errno != EAGAIN	 &&
-		    errno != EWOULDBLOCK &&
-		    errno != EALREADY)
-			return -SOCKS_ESYS;
-
 		tm.tv_sec = (time_t)timeout_sec;
 		tm.tv_usec = 0;
 
@@ -111,28 +106,33 @@ int sockslib_connect(int fd, const struct sockaddr *addr, socklen_t len)
 	return SOCKS_OK;
 }
 
-void sockslib_set_nonblock(int fd, int opt)
+int sockslib_set_nonblock(int fd, int opt)
 {
-	int flags, saved_errno = errno;
+	int flags, ret;
 
 	flags = fcntl(fd, F_GETFL, NULL);
 	if (flags < 0)
-		return;
+		ret = -1;
 
 	if (opt)
 		flags |= O_NONBLOCK;
 	else
 		flags &= (~O_NONBLOCK);
 
-	fcntl(fd, F_SETFL, flags);
-	errno = saved_errno;
+	ret = fcntl(fd, F_SETFL, flags);
+	if (ret < 0)
+		ret = -1;
+
+	return !!opt + ret;
 }
 
-void sockslib_set_nodelay(int fd, int opt)
+int sockslib_set_nodelay(int fd, int opt)
 {
-	int saved_errno = errno;
+	int ret;
 
-	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(int));
+	ret = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(int));
+	if (ret < 0)
+		ret = -1;
 
-	errno = saved_errno;
+	return !!opt + ret;
 }
